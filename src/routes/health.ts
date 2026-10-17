@@ -7,13 +7,13 @@ router.get('/', (_request: Request, response: Response) => {
   if (mongoose.connection.readyState !== 1) {
     return response.status(503).json({
       status: 'error',
-      database: 'disconnected'
+      database: 'disconnected',
     });
   }
 
   return response.status(200).json({
     status: 'ok',
-    database: 'connected'
+    database: 'connected',
   });
 });
 

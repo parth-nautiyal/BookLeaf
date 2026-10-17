@@ -7,9 +7,9 @@ import Book from '../src/models/Book';
 import User from '../src/models/User';
 import {
   connectToDatabase,
-  disconnectFromDatabase
+  disconnectFromDatabase,
 } from '../src/config/database';
-import { seedFileSchema, type SeedFile } from '../src/schemas/seed';
+import { seedFileSchema, type SeedFile } from '../src/schemas/seedFile';
 
 interface SeedCredentials {
   demoPassword: string;
@@ -65,13 +65,17 @@ export async function parseSeedFile(filePath: string): Promise<SeedFile> {
 
 export async function seedDatabase(
   data: SeedFile,
-  credentials: SeedCredentials
+  credentials: SeedCredentials,
 ): Promise<void> {
-  const authorEmails = data.authors.map((author) => author.email.trim().toLowerCase());
+  const authorEmails = data.authors.map((author) =>
+    author.email.trim().toLowerCase(),
+  );
   const adminEmail = credentials.adminEmail.trim().toLowerCase();
 
   if (new Set(authorEmails).size !== authorEmails.length) {
-    throw new Error('Author emails must be unique to seed one user per author.');
+    throw new Error(
+      'Author emails must be unique to seed one user per author.',
+    );
   }
 
   if (authorEmails.includes(adminEmail)) {
@@ -80,7 +84,10 @@ export async function seedDatabase(
 
   for (const author of data.authors) {
     for (const book of author.books) {
-      if (book.royalty_paid + book.royalty_pending !== book.total_royalty_earned) {
+      if (
+        book.royalty_paid + book.royalty_pending !==
+        book.total_royalty_earned
+      ) {
         console.warn(`WARNING: Royalty totals differ for ${book.book_id}.`);
       }
     }
@@ -104,21 +111,21 @@ export async function seedDatabase(
             email: author.email,
             phone: author.phone,
             city: author.city,
-            joinedDate: author.joined_date
-          }
+            joinedDate: author.joined_date,
+          },
         },
-        upsert: true
-      }
-    }))
+        upsert: true,
+      },
+    })),
   );
 
   const authorRecords = await Author.find({
-    authorId: { $in: data.authors.map((author) => author.author_id) }
+    authorId: { $in: data.authors.map((author) => author.author_id) },
   })
     .select({ authorId: 1 })
     .lean();
   const authorsById = new Map(
-    authorRecords.map((author) => [author.authorId, author._id])
+    authorRecords.map((author) => [author.authorId, author._id]),
   );
 
   const bookOperations = data.authors.flatMap((seedAuthor) => {
@@ -126,7 +133,7 @@ export async function seedDatabase(
 
     if (!authorObjectId) {
       throw new Error(
-        `Cannot seed books: author ${seedAuthor.author_id} was not found after the author upsert.`
+        `Cannot seed books: author ${seedAuthor.author_id} was not found after the author upsert.`,
       );
     }
 
@@ -150,11 +157,11 @@ export async function seedDatabase(
             royaltyPending: seedBook.royalty_pending,
             lastRoyaltyPayoutDate: seedBook.last_royalty_payout_date,
             printPartner: seedBook.print_partner,
-            availableOn: seedBook.available_on
-          }
+            availableOn: seedBook.available_on,
+          },
         },
-        upsert: true
-      }
+        upsert: true,
+      },
     }));
   });
 
@@ -167,7 +174,7 @@ export async function seedDatabase(
 
     if (!authorObjectId) {
       throw new Error(
-        `Cannot seed user: author ${seedAuthor.author_id} was not found after the author upsert.`
+        `Cannot seed user: author ${seedAuthor.author_id} was not found after the author upsert.`,
       );
     }
 
@@ -179,10 +186,10 @@ export async function seedDatabase(
           email,
           passwordHash: demoPasswordHash,
           role: 'author',
-          author: authorObjectId
-        }
+          author: authorObjectId,
+        },
       },
-      { upsert: true }
+      { upsert: true },
     );
     usersInserted += result.upsertedCount;
   }
@@ -193,44 +200,44 @@ export async function seedDatabase(
       $set: {
         email: adminEmail,
         passwordHash: adminPasswordHash,
-        role: 'admin'
-      }
+        role: 'admin',
+      },
     },
-    { upsert: true }
+    { upsert: true },
   );
   usersInserted += adminResult.upsertedCount;
 
   const expectedBookCount = data.authors.reduce(
     (total, author) => total + author.books.length,
-    0
+    0,
   );
   const authorCount = await Author.countDocuments();
   const bookCount = await Book.countDocuments();
   const userCount = await User.countDocuments();
   const seededUserCount = await User.countDocuments({
-    email: { $in: [...authorEmails, adminEmail] }
+    email: { $in: [...authorEmails, adminEmail] },
   });
 
   console.info(
-    `Seed counts: ${authorCount} authors, ${bookCount} books, ${userCount} users.`
+    `Seed counts: ${authorCount} authors, ${bookCount} books, ${userCount} users.`,
   );
   console.info(`User accounts inserted: ${usersInserted}.`);
 
   if (authorCount !== data.authors.length) {
     throw new Error(
-      `Expected ${data.authors.length} authors after seeding, found ${authorCount}.`
+      `Expected ${data.authors.length} authors after seeding, found ${authorCount}.`,
     );
   }
 
   if (bookCount !== expectedBookCount) {
     throw new Error(
-      `Expected ${expectedBookCount} books after seeding, found ${bookCount}.`
+      `Expected ${expectedBookCount} books after seeding, found ${bookCount}.`,
     );
   }
 
   if (seededUserCount !== authorEmails.length + 1) {
     throw new Error(
-      `Expected ${authorEmails.length + 1} seeded users, found ${seededUserCount}.`
+      `Expected ${authorEmails.length + 1} seeded users, found ${seededUserCount}.`,
     );
   }
 }
@@ -249,18 +256,23 @@ async function main(): Promise<void> {
   let connected = false;
 
   try {
-    if (process.env.NODE_ENV === 'production' && !process.argv.includes('--force')) {
-      throw new Error('Refusing to seed in production without the --force option.');
+    if (
+      process.env.NODE_ENV === 'production' &&
+      !process.argv.includes('--force')
+    ) {
+      throw new Error(
+        'Refusing to seed in production without the --force option.',
+      );
     }
 
     const credentials: SeedCredentials = {
       demoPassword: requiredEnv('SEED_DEMO_PASSWORD'),
       adminEmail: requiredEnv('SEED_ADMIN_EMAIL'),
-      adminPassword: requiredEnv('SEED_ADMIN_PASSWORD')
+      adminPassword: requiredEnv('SEED_ADMIN_PASSWORD'),
     };
     const seedFilePath = path.resolve(
       process.env.SEED_FILE ??
-        path.join(process.cwd(), 'data', 'bookleaf_sample_data.json')
+        path.join(process.cwd(), 'data', 'bookleaf_sample_data.json'),
     );
     const data = await parseSeedFile(seedFilePath);
     const connection = await connectToDatabase();

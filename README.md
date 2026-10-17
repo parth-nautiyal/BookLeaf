@@ -1,67 +1,74 @@
 # BookLeaf Author Support Portal — Backend Foundation
 
-This TypeScript backend currently provides an Express server, MongoDB connection,
-Author, Book, and User models, a Zod-validated sample-data seed script, and a
-database-backed health check. It does not yet include authentication routes,
-tickets, AI features, or a frontend.
+This TypeScript backend provides an Express server, MongoDB connection,
+Author/Book/User models, a Zod-validated sample-data seed script, seed-parser
+tests, and a database-backed health check. Authentication routes, tickets, AI
+features, and a frontend are not part of this phase.
 
-## Requirements
+## Prerequisites
 
 - Node.js 20 or newer
-- A MongoDB server you can connect to
+- MongoDB running locally
 
-## Local setup
+The default MongoDB URI in `.env.example` uses a local database named
+`bookleaf_portal`.
 
-From the project root, install dependencies and create your local environment
-file from the template:
+## Install and configure
+
+From the project root:
 
 ```sh
 npm install
 cp .env.example .env
 ```
 
-Edit `.env` and set `MONGODB_URI` to the MongoDB connection string for your
-development database. The example uses a local MongoDB database named
-`bookleaf_portal`.
+Edit `.env` for your local MongoDB connection and demo-account settings. The
+seed command requires:
 
-The seed script also requires these local environment variables:
-
-- `SEED_DEMO_PASSWORD` — password assigned to all seeded author accounts
-- `SEED_ADMIN_EMAIL` — email for the seeded admin account
+- `MONGODB_URI` — connection string for the development database
+- `SEED_DEMO_PASSWORD` — shared password for all seeded author accounts
+- `SEED_ADMIN_EMAIL` — email address for the seeded admin account
 - `SEED_ADMIN_PASSWORD` — password for the seeded admin account
 
-Use your own development values in `.env`. Do not put real credentials in
-`.env.example`, source code, or documentation. The seed script hashes account
+Use private development values in `.env`. Do not put real passwords in
+`.env.example`, source code, or documentation. The seed script hashes
 passwords with bcryptjs before storing them.
 
-## Seed sample data
+## Seed the sample data
 
-With MongoDB running and `.env` configured, seed the supplied data:
+With MongoDB running and `.env` configured, run:
 
 ```sh
 npm run seed
 ```
 
-By default, the script reads `data/bookleaf_sample_data.json`. To use another
-seed file, set `SEED_FILE` in `.env`.
+The script reads `data/bookleaf_sample_data.json` by default. Set `SEED_FILE` in
+`.env` to use a different file. The script prints the target database name,
+then upserts authors, books, and users. For the supplied data it verifies 10
+authors and 18 books and reports the user count. It does not delete documents
+or write to collections other than authors, books, and users.
 
-The script prints the target database name (not the connection string), then
-upserts author, book, and user records. It expects the author and book
-collections to contain the records represented by the seed file when finished;
-with the supplied file, that is 10 authors and 18 books. It also reports the
-number of users. Re-running the command updates matching records instead of
-creating duplicates. The seed does not delete documents or write to collections
-other than authors, books, and users.
-
-The seed refuses to run when `NODE_ENV=production` unless explicitly forced:
+The seed refuses to run when `NODE_ENV=production` unless `--force` is passed.
+Only force a production seed after deliberately verifying the target database:
 
 ```sh
 npm run seed -- --force
 ```
 
-Use `--force` only when you have deliberately verified the target database.
+Seeding is idempotent for matching author, book, and user records. Each run
+updates their records; in particular, it hashes and sets the current
+`SEED_DEMO_PASSWORD` for all author accounts and `SEED_ADMIN_PASSWORD` for the
+admin account, so re-running the seed resets those demo passwords to the
+current environment values.
 
-## Development and checks
+## Test, then start the server
+
+Run the seed parser tests. They use the sample file and temporary malformed
+files and do not connect to MongoDB:
+
+```sh
+npm test
+```
 
 Start the API in development mode:
 
@@ -69,22 +76,8 @@ Start the API in development mode:
 npm run dev
 ```
 
-Check types and compile the TypeScript backend:
-
-```sh
-npm run typecheck
-npm run build
-```
-
-Start the compiled server after building:
-
-```sh
-npm start
-```
-
-The server connects to MongoDB before listening. If the connection fails or
-`MONGODB_URI` is missing, startup reports the error and exits with a failure
-status.
+The server connects to MongoDB before listening. If `MONGODB_URI` is missing or
+the connection fails, startup reports an error and exits with a failure status.
 
 Check the health endpoint while the server is running:
 
@@ -97,17 +90,29 @@ When MongoDB is connected, it returns HTTP 200 and
 database is disconnected, it returns HTTP 503 and
 `{"status":"error","database":"disconnected"}`.
 
-There is not yet a test script in `package.json`; seed-parser tests are planned
-for a later implementation step.
+Type-check and build the backend with:
+
+```sh
+npm run typecheck
+npm run build
+npm start
+```
+
+`npm start` runs the compiled server after `npm run build`.
 
 ## Data model decisions
 
-- Books are stored in a separate collection and reference their author. This
-  makes ownership checks and future ticket-to-book relationships straightforward.
-- Nullable book fields are stored as explicit `null` values, keeping the API
-  response shape consistent for the frontend.
-- Seeding maps the supplied JSON's snake_case field names to camelCase model
-  fields. It stores the supplied royalty numbers as-is and only warns if the
-  paid and pending amounts do not sum to the recorded total.
-- Seeding is idempotent for the author, book, and user records it upserts, and
-  has a production guard to reduce the risk of accidental production writes.
+- **Books are a separate collection:** each book references its author, making
+  ownership checks and future ticket-to-book relationships straightforward.
+- **User is separate from Author:** admins do not have author records, and
+  password hashes belong on account documents rather than author profiles.
+- **Nullable fields are stored as `null`:** this keeps fields consistently
+  present in API responses instead of having to handle both null and missing
+  values.
+- **Seed behavior is deliberate:** the script upserts only authors, books, and
+  users, preserves supplied royalty values, warns rather than recalculating
+  mismatched royalties, and refuses production runs unless forced.
+- **Demo accounts are for this assignment only:** all author demo accounts
+  share the password from `SEED_DEMO_PASSWORD`; the admin account uses
+  `SEED_ADMIN_PASSWORD`. Re-running the seed sets them to the current values in
+  `.env`.

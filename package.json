@@ -8,6 +8,9 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/src/server.js",
     "seed": "tsx scripts/seed.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\"",
     "build": "tsc --project tsconfig.json",
     "typecheck": "tsc --noEmit --project tsconfig.json"
   },
@@ -24,6 +27,7 @@
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
+    "prettier": "^3.9.10",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

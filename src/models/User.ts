@@ -11,7 +11,13 @@ interface UserData {
 
 const userSchema = new mongoose.Schema<UserData>(
   {
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, required: true, enum: ['author', 'admin'] },
     author: {
@@ -19,10 +25,10 @@ const userSchema = new mongoose.Schema<UserData>(
       ref: 'Author',
       required: function (this: UserData) {
         return this.role === 'author';
-      }
-    }
+      },
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const User = mongoose.model('User', userSchema);

@@ -7,7 +7,7 @@ const bookSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Author',
       required: true,
-      index: true
+      index: true,
     },
     title: String,
     isbn: { type: String, required: true, unique: true },
@@ -22,9 +22,9 @@ const bookSchema = new mongoose.Schema(
     royaltyPending: { type: Number, min: 0 },
     lastRoyaltyPayoutDate: { type: String, default: null },
     printPartner: { type: String, default: null },
-    availableOn: { type: [String], default: [] }
+    availableOn: { type: [String], default: [] },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const Book = mongoose.model('Book', bookSchema);

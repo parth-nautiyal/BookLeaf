@@ -18,7 +18,7 @@ export const seedBookSchema = z
     royalty_pending: z.number().nonnegative(),
     last_royalty_payout_date: dateSchema.nullable(),
     print_partner: z.string().nullable(),
-    available_on: z.array(z.string())
+    available_on: z.array(z.string()),
   })
   .strict();
 
@@ -30,13 +30,13 @@ export const seedAuthorSchema = z
     phone: z.string(),
     city: z.string(),
     joined_date: dateSchema,
-    books: z.array(seedBookSchema)
+    books: z.array(seedBookSchema),
   })
   .strict();
 
 export const seedFileSchema = z
   .object({
-    authors: z.array(seedAuthorSchema)
+    authors: z.array(seedAuthorSchema),
   })
   .strict();
 
