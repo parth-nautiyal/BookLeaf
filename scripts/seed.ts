@@ -1,113 +1,99 @@
 import 'dotenv/config';
+import bcrypt from 'bcryptjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import Author from '../src/models/Author';
 import Book from '../src/models/Book';
+import User from '../src/models/User';
 import {
   connectToDatabase,
   disconnectFromDatabase
 } from '../src/config/database';
-import type { AuthorData, BookData } from '../src/types/author';
+import { seedFileSchema, type SeedFile } from '../src/schemas/seed';
 
-const seedFilePath = path.resolve(
-  process.env.SEED_FILE ?? path.join(process.cwd(), 'data', 'bookleaf_sample_data.json')
-);
-
-type SeedData = {
-  authors: AuthorData[];
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+interface SeedCredentials {
+  demoPassword: string;
+  adminEmail: string;
+  adminPassword: string;
 }
 
-function isOptionalString(value: unknown): boolean {
-  return value === undefined || value === null || typeof value === 'string';
-}
+export async function parseSeedFile(filePath: string): Promise<SeedFile> {
+  const rawData = await fs.readFile(filePath, 'utf8');
+  let parsed: unknown;
 
-function isOptionalNumber(value: unknown): boolean {
-  return value === undefined || value === null || typeof value === 'number';
-}
+  try {
+    parsed = JSON.parse(rawData);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Invalid JSON in seed file ${filePath}: ${detail}`);
+  }
 
-function isSeedBook(value: unknown): value is BookData {
-  return (
-    isRecord(value) &&
-    typeof value.book_id === 'string' &&
-    typeof value.title === 'string' &&
-    typeof value.isbn === 'string' &&
-    typeof value.genre === 'string' &&
-    isOptionalString(value.publication_date) &&
-    typeof value.status === 'string' &&
-    isOptionalNumber(value.mrp) &&
-    isOptionalNumber(value.author_royalty_per_copy) &&
-    typeof value.total_copies_sold === 'number' &&
-    typeof value.total_royalty_earned === 'number' &&
-    typeof value.royalty_paid === 'number' &&
-    typeof value.royalty_pending === 'number' &&
-    isOptionalString(value.last_royalty_payout_date) &&
-    isOptionalString(value.print_partner) &&
-    Array.isArray(value.available_on) &&
-    value.available_on.every((item: unknown) => typeof item === 'string')
-  );
-}
+  const result = seedFileSchema.safeParse(parsed);
 
-function isSeedAuthor(value: unknown): value is AuthorData {
-  return (
-    isRecord(value) &&
-    typeof value.author_id === 'string' &&
-    typeof value.name === 'string' &&
-    typeof value.email === 'string' &&
-    typeof value.phone === 'string' &&
-    typeof value.city === 'string' &&
-    typeof value.joined_date === 'string' &&
-    Array.isArray(value.books) &&
-    value.books.every(isSeedBook)
-  );
-}
-
-function validateSeedData(data: unknown): SeedData {
-  if (!isRecord(data) || !Array.isArray(data.authors)) {
-    throw new Error('The sample JSON must contain an authors array.');
+  if (!result.success) {
+    const details = result.error.issues
+      .map((issue) => `${issue.path.join('.') || '<root>'}: ${issue.message}`)
+      .join('; ');
+    throw new Error(`Invalid seed data in ${filePath}: ${details}`);
   }
 
   const authorIds = new Set<string>();
   const bookIds = new Set<string>();
-  const authors: AuthorData[] = [];
-  const candidates: unknown[] = data.authors;
+  const isbns = new Set<string>();
 
-  for (const candidate of candidates) {
-    if (!isSeedAuthor(candidate)) {
-      throw new Error('Each author must have an author_id and a books array.');
+  for (const author of result.data.authors) {
+    if (authorIds.has(author.author_id)) {
+      throw new Error(`Duplicate authorId in seed data: ${author.author_id}`);
     }
+    authorIds.add(author.author_id);
 
-    if (authorIds.has(candidate.author_id)) {
-      throw new Error(`Duplicate author_id in sample data: ${candidate.author_id}`);
-    }
-    authorIds.add(candidate.author_id);
-    authors.push(candidate);
-
-    for (const book of candidate.books) {
+    for (const book of author.books) {
       if (bookIds.has(book.book_id)) {
-        throw new Error(`Duplicate book_id in sample data: ${book.book_id}`);
+        throw new Error(`Duplicate bookId in seed data: ${book.book_id}`);
       }
       bookIds.add(book.book_id);
+
+      if (isbns.has(book.isbn)) {
+        throw new Error(`Duplicate ISBN in seed data: ${book.isbn}`);
+      }
+      isbns.add(book.isbn);
     }
   }
 
-  return { authors };
+  return result.data;
 }
 
-async function seedAuthors(): Promise<void> {
-  const rawData = await fs.readFile(seedFilePath, 'utf8');
-  const parsed: unknown = JSON.parse(rawData);
-  const data = validateSeedData(parsed);
-  const authorCount = data.authors.length;
-  const bookCount = data.authors.reduce((total, author) => total + author.books.length, 0);
+export async function seedDatabase(
+  data: SeedFile,
+  credentials: SeedCredentials
+): Promise<void> {
+  const authorEmails = data.authors.map((author) => author.email.trim().toLowerCase());
+  const adminEmail = credentials.adminEmail.trim().toLowerCase();
 
-  await connectToDatabase();
+  if (new Set(authorEmails).size !== authorEmails.length) {
+    throw new Error('Author emails must be unique to seed one user per author.');
+  }
+
+  if (authorEmails.includes(adminEmail)) {
+    throw new Error('SEED_ADMIN_EMAIL must not match an author email.');
+  }
+
+  for (const author of data.authors) {
+    for (const book of author.books) {
+      if (book.royalty_paid + book.royalty_pending !== book.total_royalty_earned) {
+        console.warn(`WARNING: Royalty totals differ for ${book.book_id}.`);
+      }
+    }
+  }
+
+  const demoPasswordHash = await bcrypt.hash(credentials.demoPassword, 10);
+  const adminPasswordHash = await bcrypt.hash(credentials.adminPassword, 10);
+
   await Author.init();
+  await Book.init();
+  await User.init();
 
-  const authorResult = await Author.bulkWrite(
+  await Author.bulkWrite(
     data.authors.map((author) => ({
       updateOne: {
         filter: { authorId: author.author_id },
@@ -126,7 +112,6 @@ async function seedAuthors(): Promise<void> {
     }))
   );
 
-  await Book.init();
   const authorRecords = await Author.find({
     authorId: { $in: data.authors.map((author) => author.author_id) }
   })
@@ -136,77 +121,168 @@ async function seedAuthors(): Promise<void> {
     authorRecords.map((author) => [author.authorId, author._id])
   );
 
-  const bookResult = await Book.bulkWrite(
-    data.authors.flatMap((author) => {
-      const authorObjectId = authorsById.get(author.author_id);
+  const bookOperations = data.authors.flatMap((seedAuthor) => {
+    const authorObjectId = authorsById.get(seedAuthor.author_id);
 
-      if (!authorObjectId) {
-        throw new Error(`Unable to find the seeded author ${author.author_id}.`);
+    if (!authorObjectId) {
+      throw new Error(
+        `Cannot seed books: author ${seedAuthor.author_id} was not found after the author upsert.`
+      );
+    }
+
+    return seedAuthor.books.map((seedBook) => ({
+      updateOne: {
+        filter: { bookId: seedBook.book_id },
+        update: {
+          $set: {
+            bookId: seedBook.book_id,
+            author: authorObjectId,
+            title: seedBook.title,
+            isbn: seedBook.isbn,
+            genre: seedBook.genre,
+            status: seedBook.status,
+            publicationDate: seedBook.publication_date,
+            mrp: seedBook.mrp,
+            authorRoyaltyPerCopy: seedBook.author_royalty_per_copy,
+            totalCopiesSold: seedBook.total_copies_sold,
+            totalRoyaltyEarned: seedBook.total_royalty_earned,
+            royaltyPaid: seedBook.royalty_paid,
+            royaltyPending: seedBook.royalty_pending,
+            lastRoyaltyPayoutDate: seedBook.last_royalty_payout_date,
+            printPartner: seedBook.print_partner,
+            availableOn: seedBook.available_on
+          }
+        },
+        upsert: true
       }
-
-      return author.books.map((book) => ({
-        updateOne: {
-          filter: { bookId: book.book_id },
-          update: {
-            $set: {
-              bookId: book.book_id,
-              author: authorObjectId,
-              title: book.title,
-              isbn: book.isbn,
-              genre: book.genre,
-              status: book.status,
-              publicationDate: book.publication_date,
-              mrp: book.mrp,
-              authorRoyaltyPerCopy: book.author_royalty_per_copy,
-              totalCopiesSold: book.total_copies_sold,
-              totalRoyaltyEarned: book.total_royalty_earned,
-              royaltyPaid: book.royalty_paid,
-              royaltyPending: book.royalty_pending,
-              lastRoyaltyPayoutDate: book.last_royalty_payout_date,
-              printPartner: book.print_partner,
-              availableOn: book.available_on
-            }
-          },
-          upsert: true
-        }
-      }));
-    })
-  );
-
-  const storedAuthorCount = await Author.countDocuments();
-
-  if (storedAuthorCount !== authorCount) {
-    throw new Error(
-      `Expected ${authorCount} author records after seeding, found ${storedAuthorCount}.`
-    );
-  }
-
-  const storedBookCount = await Book.countDocuments({
-    bookId: { $in: data.authors.flatMap((author) => author.books.map((book) => book.book_id)) }
+    }));
   });
 
-  if (storedBookCount !== bookCount) {
+  await Book.bulkWrite(bookOperations);
+
+  let usersInserted = 0;
+
+  for (const seedAuthor of data.authors) {
+    const authorObjectId = authorsById.get(seedAuthor.author_id);
+
+    if (!authorObjectId) {
+      throw new Error(
+        `Cannot seed user: author ${seedAuthor.author_id} was not found after the author upsert.`
+      );
+    }
+
+    const email = seedAuthor.email.trim().toLowerCase();
+    const result = await User.updateOne(
+      { email },
+      {
+        $set: {
+          email,
+          passwordHash: demoPasswordHash,
+          role: 'author',
+          author: authorObjectId
+        }
+      },
+      { upsert: true }
+    );
+    usersInserted += result.upsertedCount;
+  }
+
+  const adminResult = await User.updateOne(
+    { email: adminEmail },
+    {
+      $set: {
+        email: adminEmail,
+        passwordHash: adminPasswordHash,
+        role: 'admin'
+      }
+    },
+    { upsert: true }
+  );
+  usersInserted += adminResult.upsertedCount;
+
+  const expectedBookCount = data.authors.reduce(
+    (total, author) => total + author.books.length,
+    0
+  );
+  const authorCount = await Author.countDocuments();
+  const bookCount = await Book.countDocuments();
+  const userCount = await User.countDocuments();
+  const seededUserCount = await User.countDocuments({
+    email: { $in: [...authorEmails, adminEmail] }
+  });
+
+  console.info(
+    `Seed counts: ${authorCount} authors, ${bookCount} books, ${userCount} users.`
+  );
+  console.info(`User accounts inserted: ${usersInserted}.`);
+
+  if (authorCount !== data.authors.length) {
     throw new Error(
-      `Expected ${bookCount} book records after seeding, found ${storedBookCount}.`
+      `Expected ${data.authors.length} authors after seeding, found ${authorCount}.`
     );
   }
 
-  console.info(
-    `Seed complete: ${authorCount} authors and ${bookCount} books.`
-  );
-  console.info(
-    `Author writes: ${authorResult.upsertedCount} inserted, ${authorResult.modifiedCount} replaced.`
-  );
-  console.info(
-    `Book writes: ${bookResult.upsertedCount} inserted, ${bookResult.modifiedCount} replaced.`
-  );
+  if (bookCount !== expectedBookCount) {
+    throw new Error(
+      `Expected ${expectedBookCount} books after seeding, found ${bookCount}.`
+    );
+  }
+
+  if (seededUserCount !== authorEmails.length + 1) {
+    throw new Error(
+      `Expected ${authorEmails.length + 1} seeded users, found ${seededUserCount}.`
+    );
+  }
 }
 
-seedAuthors()
-  .catch((error: unknown) => {
-    console.error('Unable to seed author data:', error);
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+
+  if (!value || value.trim() === '') {
+    throw new Error(`${name} is required to seed demo users.`);
+  }
+
+  return value;
+}
+
+async function main(): Promise<void> {
+  let connected = false;
+
+  try {
+    if (process.env.NODE_ENV === 'production' && !process.argv.includes('--force')) {
+      throw new Error('Refusing to seed in production without the --force option.');
+    }
+
+    const credentials: SeedCredentials = {
+      demoPassword: requiredEnv('SEED_DEMO_PASSWORD'),
+      adminEmail: requiredEnv('SEED_ADMIN_EMAIL'),
+      adminPassword: requiredEnv('SEED_ADMIN_PASSWORD')
+    };
+    const seedFilePath = path.resolve(
+      process.env.SEED_FILE ??
+        path.join(process.cwd(), 'data', 'bookleaf_sample_data.json')
+    );
+    const data = await parseSeedFile(seedFilePath);
+    const connection = await connectToDatabase();
+    connected = true;
+
+    console.info(`Target database: ${connection.name}`);
+    await seedDatabase(data, credentials);
+  } catch (error) {
+    console.error('Unable to seed BookLeaf data:', error);
     process.exitCode = 1;
-  }  )
-  .finally(async () => {
-    await disconnectFromDatabase();
-  });
+  } finally {
+    if (connected) {
+      try {
+        await disconnectFromDatabase();
+      } catch (error) {
+        console.error('Unable to disconnect from MongoDB:', error);
+        process.exitCode = 1;
+      }
+    }
+  }
+}
+
+if (require.main === module) {
+  void main();
+}
