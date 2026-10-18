@@ -8,8 +8,9 @@ import test from 'node:test';
 import app from '../src/app';
 import { getRuntimeConfig } from '../src/config/env';
 import { errorHandler } from '../src/middleware/errorHandler';
+import loginRateLimiter from '../src/middleware/loginRateLimiter';
 import { requireRole } from '../src/middleware/auth';
-import { currentUserHandler, loginRateLimiter } from '../src/routes/auth';
+import { currentUserHandler } from '../src/routes/auth';
 import { loginSchema } from '../src/schemas/auth';
 import type { AuthenticatedUser } from '../src/types/authenticatedUser';
 

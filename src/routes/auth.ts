@@ -1,19 +1,20 @@
 import bcrypt from 'bcryptjs';
 import express, { type RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
-import rateLimit from 'express-rate-limit';
-import { AUTH_COOKIE_NAME, JWT_ALGORITHM } from '../constants/auth';
+import {
+  AUTH_COOKIE_NAME,
+  DUMMY_PASSWORD_HASH,
+  JWT_ALGORITHM,
+} from '../constants/auth';
 import { AppError } from '../errors/AppError';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { requireAuth } from '../middleware/auth';
+import loginRateLimiter from '../middleware/loginRateLimiter';
 import { validateBody } from '../middleware/validate';
 import { getRuntimeConfig } from '../config/env';
 import User from '../models/User';
 import { loginSchema, type LoginInput } from '../schemas/auth';
 import type { AuthenticatedUser } from '../types/authenticatedUser';
-
-const DUMMY_PASSWORD_HASH =
-  '$2b$10$a86qayl5M1Ld2z5HAuFsler3quo2tqcz0xcsuWW.cX3K.b93eLO0.';
 
 const authCookieOptions = {
   httpOnly: true,
@@ -42,20 +43,6 @@ export const currentUserHandler: RequestHandler = (request, response, next) => {
     },
   });
 };
-
-export const loginRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (_request, response) =>
-    response.status(429).json({
-      error: {
-        code: 'RATE_LIMIT_EXCEEDED',
-        message: 'Too many login attempts. Please try again later.',
-      },
-    }),
-});
 
 router.post(
   '/login',
