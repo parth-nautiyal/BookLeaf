@@ -8,14 +8,10 @@ import test from 'node:test';
 import app from '../src/app';
 import { getRuntimeConfig } from '../src/config/env';
 import { errorHandler } from '../src/middleware/errorHandler';
-import {
-  currentUserHandler,
-  requireAuth,
-  requireRole,
-  type AuthenticatedUser,
-} from '../src/middleware/auth';
-import { loginRateLimiter } from '../src/routes/auth';
+import { requireRole } from '../src/middleware/auth';
+import { currentUserHandler, loginRateLimiter } from '../src/routes/auth';
 import { loginSchema } from '../src/schemas/auth';
+import type { AuthenticatedUser } from '../src/types/authenticatedUser';
 
 process.env.MONGODB_URI = 'mongodb://127.0.0.1:27017/bookleaf_auth_test';
 process.env.JWT_SECRET = 'substep4-test-secret-that-is-at-least-32-characters';

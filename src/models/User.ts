@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
-
-export type UserRole = 'author' | 'admin';
+import { userRoles, type UserRole } from '../constants/user';
 
 interface UserData {
   email: string;
@@ -19,7 +18,7 @@ const userSchema = new mongoose.Schema<UserData>(
       trim: true,
     },
     passwordHash: { type: String, required: true, select: false },
-    role: { type: String, required: true, enum: ['author', 'admin'] },
+    role: { type: String, required: true, enum: userRoles },
     author: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Author',

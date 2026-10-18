@@ -2,20 +2,12 @@ import type { RequestHandler } from 'express';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { Types } from 'mongoose';
 import { getRuntimeConfig } from '../config/env';
+import { AUTH_COOKIE_NAME, JWT_ALGORITHM } from '../constants/auth';
+import type { UserRole } from '../constants/user';
 import { AppError } from '../errors/AppError';
 import { asyncHandler } from './asyncHandler';
 import Author from '../models/Author';
-import User, { type UserRole } from '../models/User';
-
-export const AUTH_COOKIE_NAME = 'bookleaf_auth';
-export const JWT_ALGORITHM = 'HS256';
-
-export interface AuthenticatedUser {
-  id: string;
-  email: string;
-  role: UserRole;
-  authorId: string | null;
-}
+import User from '../models/User';
 
 function unauthorized(message = 'Authentication is required'): AppError {
   return new AppError(401, 'UNAUTHENTICATED', message);
@@ -98,20 +90,3 @@ export function requireRole(
     return next();
   };
 }
-
-export const currentUserHandler: RequestHandler = (request, response, next) => {
-  const user = request.authenticatedUser;
-
-  if (!user) {
-    return next(unauthorized());
-  }
-
-  return response.status(200).json({
-    user: {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      authorId: user.authorId,
-    },
-  });
-};

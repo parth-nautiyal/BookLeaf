@@ -1,19 +1,16 @@
 import bcrypt from 'bcryptjs';
-import express from 'express';
+import express, { type RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
+import { AUTH_COOKIE_NAME, JWT_ALGORITHM } from '../constants/auth';
 import { AppError } from '../errors/AppError';
 import { asyncHandler } from '../middleware/asyncHandler';
-import {
-  AUTH_COOKIE_NAME,
-  currentUserHandler,
-  JWT_ALGORITHM,
-  requireAuth,
-} from '../middleware/auth';
+import { requireAuth } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import { getRuntimeConfig } from '../config/env';
 import User from '../models/User';
 import { loginSchema, type LoginInput } from '../schemas/auth';
+import type { AuthenticatedUser } from '../types/authenticatedUser';
 
 const DUMMY_PASSWORD_HASH =
   '$2b$10$a86qayl5M1Ld2z5HAuFsler3quo2tqcz0xcsuWW.cX3K.b93eLO0.';
@@ -26,6 +23,25 @@ const authCookieOptions = {
 };
 
 const router = express.Router();
+
+export const currentUserHandler: RequestHandler = (request, response, next) => {
+  const user: AuthenticatedUser | undefined = request.authenticatedUser;
+
+  if (!user) {
+    return next(
+      new AppError(401, 'UNAUTHENTICATED', 'Authentication is required'),
+    );
+  }
+
+  return response.status(200).json({
+    user: {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      authorId: user.authorId,
+    },
+  });
+};
 
 export const loginRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

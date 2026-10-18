@@ -1,8 +1,8 @@
 # BookLeaf Author Support Portal — Backend Foundation
 
 This TypeScript backend provides an Express server, MongoDB connection,
-Author/Book/User models, login/logout routes, a Zod-validated sample-data seed
-script, tests, and a database-backed health check. Ticket workflows, AI
+Author/Book/User/Ticket models, login/logout routes, a Zod-validated sample-data
+seed script, tests, and a database-backed health check. Ticket workflows, AI
 features, and a frontend are not part of this phase.
 
 ## Prerequisites
@@ -125,6 +125,16 @@ npm start
   ownership checks and future ticket-to-book relationships straightforward.
 - **User is separate from Author:** admins do not have author records, and
   password hashes belong on account documents rather than author profiles.
+- **Ticket values follow the assignment:** categories, priorities, and statuses
+  use the labels specified in the PDF. Category and priority may remain `null`
+  if AI assistance is unavailable; newly created tickets default to `Open`.
+- **Ticket assignment and messages:** tickets reference their author, optional
+  book, and optional assigned User by MongoDB ObjectId. Public replies and
+  internal notes have distinct message types; this model does not itself
+  enforce who can read or create either type.
+- **AI suggestions are separate:** suggested category, priority, and draft
+  response are stored apart from the confirmed ticket values so an admin can
+  review or override them.
 - **Nullable fields are stored as `null`:** this keeps fields consistently
   present in API responses instead of having to handle both null and missing
   values.
