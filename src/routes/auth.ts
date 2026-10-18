@@ -1,0 +1,81 @@
+import bcrypt from 'bcryptjs';
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import { AppError } from '../errors/AppError';
+import { asyncHandler } from '../middleware/asyncHandler';
+import {
+  AUTH_COOKIE_NAME,
+  currentUserHandler,
+  JWT_ALGORITHM,
+  requireAuth,
+} from '../middleware/auth';
+import { validateBody } from '../middleware/validate';
+import { getRuntimeConfig } from '../config/env';
+import User from '../models/User';
+import { loginSchema, type LoginInput } from '../schemas/auth';
+
+const DUMMY_PASSWORD_HASH =
+  '$2b$10$a86qayl5M1Ld2z5HAuFsler3quo2tqcz0xcsuWW.cX3K.b93eLO0.';
+
+const authCookieOptions = {
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  secure: process.env.NODE_ENV === 'production',
+  path: '/',
+};
+
+const router = express.Router();
+
+router.post(
+  '/login',
+  validateBody(loginSchema),
+  asyncHandler(async (request, response) => {
+    const { email, password } = request.body as LoginInput;
+    const user = await User.findOne({ email }).select('+passwordHash');
+
+    if (!user) {
+      await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
+      throw new AppError(
+        401,
+        'INVALID_CREDENTIALS',
+        'Invalid email or password',
+      );
+    }
+
+    const passwordMatches = await bcrypt.compare(password, user.passwordHash);
+
+    if (!passwordMatches) {
+      throw new AppError(
+        401,
+        'INVALID_CREDENTIALS',
+        'Invalid email or password',
+      );
+    }
+
+    const config = getRuntimeConfig();
+    const token = jwt.sign(
+      { sub: user._id.toString(), role: user.role },
+      config.jwtSecret,
+      {
+        algorithm: JWT_ALGORITHM,
+        expiresIn: config.jwtExpiresInMs / 1000,
+      },
+    );
+
+    response.cookie(AUTH_COOKIE_NAME, token, {
+      ...authCookieOptions,
+      maxAge: config.jwtExpiresInMs,
+    });
+
+    return response.status(200).json({ message: 'Logged in successfully' });
+  }),
+);
+
+router.post('/logout', (_request, response) => {
+  response.clearCookie(AUTH_COOKIE_NAME, authCookieOptions);
+  return response.status(200).json({ message: 'Logged out successfully' });
+});
+
+router.get('/me', requireAuth, currentUserHandler);
+
+export default router;

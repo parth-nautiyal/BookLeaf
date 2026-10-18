@@ -1,13 +1,13 @@
-import 'dotenv/config';
 import app from './app';
 import { connectToDatabase } from './config/database';
+import { getRuntimeConfig } from './config/env';
 
 async function startServer(): Promise<void> {
+  const config = getRuntimeConfig();
   await connectToDatabase();
 
-  const port = Number(process.env.PORT || 3000);
-  app.listen(port, () => {
-    console.info(`BookLeaf API listening on port ${port}.`);
+  app.listen(config.port, () => {
+    console.info(`BookLeaf API listening on port ${config.port}.`);
   });
 }
 

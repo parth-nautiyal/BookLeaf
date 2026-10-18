@@ -1,8 +1,8 @@
 # BookLeaf Author Support Portal — Backend Foundation
 
 This TypeScript backend provides an Express server, MongoDB connection,
-Author/Book/User models, a Zod-validated sample-data seed script, seed-parser
-tests, and a database-backed health check. Authentication routes, tickets, AI
+Author/Book/User models, login/logout routes, a Zod-validated sample-data seed
+script, tests, and a database-backed health check. Ticket workflows, AI
 features, and a frontend are not part of this phase.
 
 ## Prerequisites
@@ -89,6 +89,19 @@ When MongoDB is connected, it returns HTTP 200 and
 `{"status":"ok","database":"connected"}`. If the server is running while the
 database is disconnected, it returns HTTP 503 and
 `{"status":"error","database":"disconnected"}`.
+
+## Authentication endpoints
+
+- `POST /api/auth/login` accepts an email and password. On success, it sets the
+  JWT in the `bookleaf_auth` HTTP-only cookie; the token is not returned in the
+  response body.
+- `POST /api/auth/logout` clears that cookie.
+
+The authentication cookie uses `SameSite=Lax`, is secure only in production,
+and expires with the configured `JWT_EXPIRES_IN` lifetime. Logout clears the
+cookie in the current browser; because the JWT is stateless, it does not revoke
+a token that has already been copied elsewhere, which remains valid until it
+expires.
 
 Type-check and build the backend with:
 

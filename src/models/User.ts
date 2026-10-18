@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-type UserRole = 'author' | 'admin';
+export type UserRole = 'author' | 'admin';
 
 interface UserData {
   email: string;
