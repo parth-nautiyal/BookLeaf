@@ -14,6 +14,7 @@ import {
   requireRole,
   type AuthenticatedUser,
 } from '../src/middleware/auth';
+import { loginRateLimiter } from '../src/routes/auth';
 import { loginSchema } from '../src/schemas/auth';
 
 process.env.MONGODB_URI = 'mongodb://127.0.0.1:27017/bookleaf_auth_test';
@@ -102,6 +103,67 @@ test('invalid login input is rejected before database access', async () => {
   }
 });
 
+test('login requests below the rate limit retain validation behavior', async () => {
+  loginRateLimiter.resetKey('127.0.0.1');
+
+  try {
+    await withServer(app, async (baseUrl) => {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const response = await fetch(`${baseUrl}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email: 'not-an-email', password: 'password' }),
+        });
+
+        assert.equal(response.status, 400);
+        assert.equal((await response.json()).error.code, 'VALIDATION_ERROR');
+      }
+    });
+  } finally {
+    loginRateLimiter.resetKey('127.0.0.1');
+  }
+});
+
+test('login rate limit returns the structured JSON error after five attempts', async () => {
+  loginRateLimiter.resetKey('127.0.0.1');
+
+  try {
+    await withServer(app, async (baseUrl) => {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const response = await fetch(`${baseUrl}/api/auth/login`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-forwarded-for': `198.51.100.${attempt + 1}`,
+          },
+          body: JSON.stringify({ email: 'not-an-email', password: 'password' }),
+        });
+
+        assert.equal(response.status, 400);
+      }
+
+      const limitedResponse = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-forwarded-for': '203.0.113.10',
+        },
+        body: JSON.stringify({ email: 'not-an-email', password: 'password' }),
+      });
+
+      assert.equal(limitedResponse.status, 429);
+      assert.deepEqual(await limitedResponse.json(), {
+        error: {
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: 'Too many login attempts. Please try again later.',
+        },
+      });
+    });
+  } finally {
+    loginRateLimiter.resetKey('127.0.0.1');
+  }
+});
+
 test('logout clears the authentication cookie and returns success', async () => {
   await withServer(app, async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/auth/logout`, {
@@ -128,6 +190,16 @@ test('GET /api/auth/me rejects a missing authentication cookie with 401', async 
 
     assert.equal(response.status, 401);
     assert.equal(body.error.code, 'UNAUTHENTICATED');
+  });
+});
+
+test('API responses include Helmet security headers', async () => {
+  await withServer(app, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/health`);
+
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(response.headers.get('x-frame-options'), 'SAMEORIGIN');
+    assert.equal(response.headers.get('content-security-policy'), null);
   });
 });
 

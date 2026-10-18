@@ -103,6 +103,12 @@ cookie in the current browser; because the JWT is stateless, it does not revoke
 a token that has already been copied elsewhere, which remains valid until it
 expires.
 
+Helmet adds HTTP security headers to API responses; the browser-oriented
+Content Security Policy is disabled because this server does not serve a
+frontend. Login is limited to five attempts per client IP every 15 minutes.
+The limiter uses the direct connection IP; proxy headers are not trusted by
+default.
+
 Type-check and build the backend with:
 
 ```sh

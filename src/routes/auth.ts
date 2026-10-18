@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
 import { AppError } from '../errors/AppError';
 import { asyncHandler } from '../middleware/asyncHandler';
 import {
@@ -26,8 +27,23 @@ const authCookieOptions = {
 
 const router = express.Router();
 
+export const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_request, response) =>
+    response.status(429).json({
+      error: {
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: 'Too many login attempts. Please try again later.',
+      },
+    }),
+});
+
 router.post(
   '/login',
+  loginRateLimiter,
   validateBody(loginSchema),
   asyncHandler(async (request, response) => {
     const { email, password } = request.body as LoginInput;
