@@ -76,6 +76,18 @@ export function getMongoDbUri(): string {
   return result.data;
 }
 
+export function getClientUrl(): string {
+  const result = clientUrlSchema.safeParse(process.env.CLIENT_URL);
+
+  if (!result.success) {
+    throw new Error(
+      'CLIENT_URL is required and must be an explicit HTTP(S) origin.',
+    );
+  }
+
+  return result.data;
+}
+
 function durationToMilliseconds(duration: string): number {
   const match = /^([1-9]\d*)(s|m|h|d)$/.exec(duration);
 

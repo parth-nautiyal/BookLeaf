@@ -1,6 +1,8 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
 import helmet from 'helmet';
+import { getClientUrl } from './config/env';
 import authRouter from './routes/auth';
 import healthRouter from './routes/health';
 import { errorHandler } from './middleware/errorHandler';
@@ -12,6 +14,18 @@ app.use(
   helmet({
     contentSecurityPolicy: false,
     ...(process.env.NODE_ENV === 'production' ? {} : { hsts: false }),
+  }),
+);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, false);
+      }
+
+      return callback(null, origin === getClientUrl());
+    },
+    credentials: true,
   }),
 );
 app.use(express.json({ limit: '100kb' }));
