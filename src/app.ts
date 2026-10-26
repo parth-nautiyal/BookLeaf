@@ -31,7 +31,7 @@ app.use(
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 app.use('/health', healthRouter);
-app.use('/api/auth', authRouter);
+app.use('/api/v1/auth', authRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

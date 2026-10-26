@@ -92,10 +92,16 @@ database is disconnected, it returns HTTP 503 and
 
 ## Authentication endpoints
 
-- `POST /api/auth/login` accepts an email and password. On success, it sets the
-  JWT in the `bookleaf_auth` HTTP-only cookie; the token is not returned in the
-  response body.
-- `POST /api/auth/logout` clears that cookie.
+- `POST /api/v1/auth/login` accepts an email and password. On success, it sets
+  the JWT in the `bookleaf_auth` HTTP-only cookie; the token is not returned in
+  the response body.
+- `POST /api/v1/auth/logout` clears that cookie.
+- `GET /api/v1/auth/me` returns the authenticated user's safe identity fields
+  and requires a valid authentication cookie.
+
+Business API routes use the `/api/v1/` prefix. The unversioned `/api/auth/`
+paths are no longer supported; `/health` remains an unversioned operational
+health check.
 
 The authentication cookie uses `SameSite=Lax`, is secure only in production,
 and expires with the configured `JWT_EXPIRES_IN` lifetime. Logout clears the

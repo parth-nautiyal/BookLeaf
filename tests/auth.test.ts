@@ -84,7 +84,7 @@ test('invalid login input is rejected before database access', async () => {
   const { server, baseUrl } = await startServer();
 
   try {
-    const response = await fetch(`${baseUrl}/api/auth/login`, {
+    const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email: 'not-an-email', password: 'password' }),
@@ -106,7 +106,7 @@ test('login requests below the rate limit retain validation behavior', async () 
   try {
     await withServer(app, async (baseUrl) => {
       for (let attempt = 0; attempt < 5; attempt += 1) {
-        const response = await fetch(`${baseUrl}/api/auth/login`, {
+        const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ email: 'not-an-email', password: 'password' }),
@@ -127,7 +127,7 @@ test('login rate limit returns the structured JSON error after five attempts', a
   try {
     await withServer(app, async (baseUrl) => {
       for (let attempt = 0; attempt < 5; attempt += 1) {
-        const response = await fetch(`${baseUrl}/api/auth/login`, {
+        const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -139,7 +139,7 @@ test('login rate limit returns the structured JSON error after five attempts', a
         assert.equal(response.status, 400);
       }
 
-      const limitedResponse = await fetch(`${baseUrl}/api/auth/login`, {
+      const limitedResponse = await fetch(`${baseUrl}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -163,7 +163,7 @@ test('login rate limit returns the structured JSON error after five attempts', a
 
 test('logout clears the authentication cookie and returns success', async () => {
   await withServer(app, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/auth/logout`, {
+    const response = await fetch(`${baseUrl}/api/v1/auth/logout`, {
       method: 'POST',
     });
     const cookie = response.headers.get('set-cookie');
@@ -180,13 +180,33 @@ test('logout clears the authentication cookie and returns success', async () => 
   });
 });
 
-test('GET /api/auth/me rejects a missing authentication cookie with 401', async () => {
+test('GET /api/v1/auth/me rejects a missing authentication cookie with 401', async () => {
   await withServer(app, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/auth/me`);
+    const response = await fetch(`${baseUrl}/api/v1/auth/me`);
     const body = await response.json();
 
     assert.equal(response.status, 401);
     assert.equal(body.error.code, 'UNAUTHENTICATED');
+  });
+});
+
+test('legacy unversioned authentication paths return 404', async () => {
+  await withServer(app, async (baseUrl) => {
+    const requests = [
+      { path: '/api/auth/login', method: 'POST' },
+      { path: '/api/auth/logout', method: 'POST' },
+      { path: '/api/auth/me', method: 'GET' },
+    ] as const;
+
+    for (const request of requests) {
+      const response = await fetch(`${baseUrl}${request.path}`, {
+        method: request.method,
+      });
+      const body = await response.json();
+
+      assert.equal(response.status, 404, request.path);
+      assert.equal(body.error.code, 'NOT_FOUND', request.path);
+    }
   });
 });
 
@@ -202,7 +222,7 @@ test('API responses include Helmet security headers', async () => {
 
 test('requireAuth rejects malformed JWTs without querying the database', async () => {
   await withServer(app, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/auth/me`, {
+    const response = await fetch(`${baseUrl}/api/v1/auth/me`, {
       headers: { cookie: 'bookleaf_auth=not-a-jwt' },
     });
 
@@ -218,7 +238,7 @@ test('requireAuth rejects JWTs with an invalid signature without querying the da
   );
 
   await withServer(app, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/auth/me`, {
+    const response = await fetch(`${baseUrl}/api/v1/auth/me`, {
       headers: { cookie: `bookleaf_auth=${token}` },
     });
 
@@ -234,7 +254,7 @@ test('requireAuth rejects expired JWTs without querying the database', async () 
   );
 
   await withServer(app, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/auth/me`, {
+    const response = await fetch(`${baseUrl}/api/v1/auth/me`, {
       headers: { cookie: `bookleaf_auth=${token}` },
     });
 
@@ -250,7 +270,7 @@ test('requireAuth rejects a signed token with an invalid subject before querying
   );
 
   await withServer(app, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/auth/me`, {
+    const response = await fetch(`${baseUrl}/api/v1/auth/me`, {
       headers: { cookie: `bookleaf_auth=${token}` },
     });
 
