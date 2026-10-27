@@ -103,6 +103,16 @@ Business API routes use the `/api/v1/` prefix. The unversioned `/api/auth/`
 paths are no longer supported; `/health` remains an unversioned operational
 health check.
 
+## Author books endpoint
+
+- `GET /api/v1/books` requires an authenticated author and returns that
+  author's books, including books still in production. Book ownership is
+  determined on the server from the authenticated account; the request cannot
+  select another author.
+- Each returned book includes an API-friendly `id` and the My Books fields:
+  title, ISBN, genre, publication date, status, MRP, copies sold, and royalty
+  totals.
+
 The authentication cookie uses `SameSite=Lax`, is secure only in production,
 and expires with the configured `JWT_EXPIRES_IN` lifetime. Logout clears the
 cookie in the current browser; because the JWT is stateless, it does not revoke

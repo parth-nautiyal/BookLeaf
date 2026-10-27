@@ -6,6 +6,8 @@ import {
   DUMMY_PASSWORD_HASH,
   JWT_ALGORITHM,
 } from '../constants/auth';
+import { errorCodes } from '../constants/errors';
+import { errorMessages } from '../constants/errorMessages';
 import { AppError } from '../errors/AppError';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { requireAuth } from '../middleware/auth';
@@ -30,7 +32,11 @@ export const currentUserHandler: RequestHandler = (request, response, next) => {
 
   if (!user) {
     return next(
-      new AppError(401, 'UNAUTHENTICATED', 'Authentication is required'),
+      new AppError(
+        401,
+        errorCodes.unauthenticated,
+        'Authentication is required',
+      ),
     );
   }
 
@@ -56,8 +62,8 @@ router.post(
       await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
       throw new AppError(
         401,
-        'INVALID_CREDENTIALS',
-        'Invalid email or password',
+        errorCodes.invalidCredentials,
+        errorMessages.invalidCredentials,
       );
     }
 
@@ -66,8 +72,8 @@ router.post(
     if (!passwordMatches) {
       throw new AppError(
         401,
-        'INVALID_CREDENTIALS',
-        'Invalid email or password',
+        errorCodes.invalidCredentials,
+        errorMessages.invalidCredentials,
       );
     }
 

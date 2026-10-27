@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { getClientUrl } from './config/env';
 import authRouter from './routes/auth';
+import booksRouter from './routes/books';
 import healthRouter from './routes/health';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFound';
@@ -32,6 +33,7 @@ app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 app.use('/health', healthRouter);
 app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/books', booksRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

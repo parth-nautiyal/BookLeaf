@@ -3,6 +3,7 @@ import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { Types } from 'mongoose';
 import { getRuntimeConfig } from '../config/env';
 import { AUTH_COOKIE_NAME, JWT_ALGORITHM } from '../constants/auth';
+import { errorCodes } from '../constants/errors';
 import type { UserRole } from '../constants/user';
 import { AppError } from '../errors/AppError';
 import { asyncHandler } from './asyncHandler';
@@ -10,7 +11,7 @@ import Author from '../models/Author';
 import User from '../models/User';
 
 function unauthorized(message = 'Authentication is required'): AppError {
-  return new AppError(401, 'UNAUTHENTICATED', message);
+  return new AppError(401, errorCodes.unauthenticated, message);
 }
 
 export const requireAuth: RequestHandler = asyncHandler(
