@@ -1,9 +1,10 @@
 # BookLeaf Author Support Portal — Backend Foundation
 
 This TypeScript backend provides an Express server, MongoDB connection,
-Author/Book/User/Ticket models, login/logout routes, a Zod-validated sample-data
-seed script, tests, and a database-backed health check. Ticket workflows, AI
-features, and a frontend are not part of this phase.
+Author/Book/User/Ticket models, authentication routes, author book and ticket
+creation endpoints, a Zod-validated sample-data seed script, tests, and a
+database-backed health check. Ticket listing, details, conversations, AI
+features, and a frontend are not implemented yet.
 
 ## Prerequisites
 
@@ -112,6 +113,22 @@ health check.
 - Each returned book includes an API-friendly `id` and the My Books fields:
   title, ISBN, genre, publication date, status, MRP, copies sold, and royalty
   totals.
+
+## Create an author ticket
+
+- `POST /api/v1/tickets` requires an authenticated author.
+- Send `subject` and `description`; optionally include `bookId`, the API `id`
+  of one of the authenticated author's books. Omit `bookId` for a General /
+  Account Level ticket.
+- The server derives the author from the authenticated account and verifies
+  that a selected book belongs to that author. Client-supplied identity,
+  status, category, priority, or other extra fields are rejected.
+- A successful request returns HTTP `201` with a `ticket` object containing its
+  `id`, `bookId` (or `null`), subject, description, status, nullable category
+  and priority, and timestamps.
+
+Ticket list/detail endpoints, conversation replies, and internal-note handling
+are not implemented yet.
 
 The authentication cookie uses `SameSite=Lax`, is secure only in production,
 and expires with the configured `JWT_EXPIRES_IN` lifetime. Logout clears the

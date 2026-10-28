@@ -6,6 +6,7 @@ import { getClientUrl } from './config/env';
 import authRouter from './routes/auth';
 import booksRouter from './routes/books';
 import healthRouter from './routes/health';
+import ticketsRouter from './routes/tickets';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFound';
 
@@ -34,6 +35,7 @@ app.use(cookieParser());
 app.use('/health', healthRouter);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/books', booksRouter);
+app.use('/api/v1/tickets', ticketsRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
