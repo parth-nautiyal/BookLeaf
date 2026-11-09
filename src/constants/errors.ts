@@ -3,4 +3,5 @@ export const errorCodes = {
   invalidCredentials: 'INVALID_CREDENTIALS',
   authorNotFound: 'AUTHOR_NOT_FOUND',
   bookNotFound: 'BOOK_NOT_FOUND',
+  ticketNotFound: 'TICKET_NOT_FOUND',
 } as const;
